@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UK Income Tax Calculator</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1d1d1f; --muted: #5c5c66; --line: #c9c9cf; --red: #e30a17; --card: #f6f6f8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17171a; --fg: #ececf0; --muted: #a3a3ad; --line: #44444c; --card: #202024; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 64px 24px 24px; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .home-btn {
+    position: fixed; top: 16px; left: 16px; z-index: 10; padding: 8px 14px;
+    border: 1.5px solid var(--red); border-radius: 6px; background: var(--bg); color: var(--red);
+    font: 600 0.9rem system-ui, -apple-system, "Segoe UI", sans-serif; text-decoration: none;
+  }
+  .home-btn:hover { background: var(--red); color: #fff; }
+  .home-btn:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+  main { max-width: 600px; margin: 0 auto; }
+  h1 { margin: 0 0 8px; color: var(--red); font-size: 1.9rem; text-align: center; }
+  .note { margin: 0 0 24px; color: var(--muted); font-size: 0.95rem; text-align: center; }
+  label { display: block; margin-bottom: 6px; font-weight: 600; }
+  .group { margin-bottom: 4px; }
+  .field { position: relative; }
+  .field .symbol { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  input[type="text"], select {
+    width: 100%; padding: 12px; font-size: 1.1rem;
+    border: 1.5px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg);
+  }
+  input[type="text"] { padding-left: 28px; }
+  input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--red); }
+  .error { min-height: 1.4em; margin: 6px 0 8px; color: var(--red); font-size: 0.9rem; }
+  .check { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; font-weight: 600; cursor: pointer; }
+  input[type="checkbox"] { width: 20px; height: 20px; margin: 0; accent-color: var(--red); cursor: pointer; }
+  input[type="text"]:disabled { opacity: 0.5; cursor: not-allowed; }
+  button[type="submit"] {
+    width: 100%; padding: 12px; border: 1.5px solid var(--red); border-radius: 6px;
+    background: var(--red); color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer;
+  }
+  button[type="submit"]:hover { background: transparent; color: var(--red); }
+  .results { margin-top: 24px; padding: 16px 20px; background: var(--card); border-radius: 8px; }
+  .results[hidden] { display: none; }
+  .results h2 { margin: 0 0 12px; font-size: 1.05rem; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 10px 6px; text-align: right; border-top: 1px solid var(--line); }
+  thead th { border-top: 0; color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+  th:first-child, td:first-child { text-align: left; }
+  td:first-child small { display: block; color: var(--muted); font-size: 0.8rem; }
+  .section th { padding-top: 18px; text-align: left; color: var(--red); font-size: 0.9rem; }
+  .subtotal td { font-weight: 700; }
+  tfoot td { font-weight: 700; }
+  tfoot td small { display: block; color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+  .disclaimer { margin: 32px 0 0; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; line-height: 1.5; }
+  .fine-print { margin: 12px 0 0; color: var(--muted); font-size: 0.8rem; }
+  .final td { font-size: 1.05rem; }
+  .export-btn { margin-top: 16px; padding: 10px 18px; border: 1.5px solid var(--red); border-radius: 6px; background: transparent; color: var(--red); font-size: 0.95rem; font-weight: 700; cursor: pointer; }
+  .export-btn:hover { background: var(--red); color: #fff; }
+  .export-hint { display: block; margin-top: 6px; color: var(--muted); font-size: 0.8rem; }
+  .print-only { display: none; }
+  @media print {
+    :root { --bg: #ffffff; --fg: #000000; --muted: #444444; --line: #bbbbbb; --card: #ffffff; }
+    body { padding: 0; }
+    .home-btn, .note, form, .export-btn, .export-hint { display: none !important; }
+    .results { margin-top: 0; padding: 0; }
+    .print-only { display: block; margin: 0 0 8px; color: var(--muted); font-size: 0.85rem; }
+    tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <a class="home-btn" href="index.html">Home</a>
+
+  <main>
+    <h1>UK Income Tax Calculator</h1>
+    <p class="note">Choose a tax year and enter your annual salary to see your Income Tax, National Insurance and take-home pay.</p>
+
+    <form id="taxForm" novalidate>
+      <div class="group">
+        <label for="taxYear">Tax year</label>
+        <select id="taxYear" name="taxYear" required aria-describedby="yearError">
+          <option value="" selected disabled>Select tax year</option>
+          <option value="current">Current tax year</option>
+          <option value="2025-26">2025/2026</option>
+        </select>
+        <div class="error" id="yearError" role="alert"></div>
+      </div>
+
+      <div class="group">
+        <label for="salary">Annual salary (£)</label>
+        <div class="field">
+          <span class="symbol" aria-hidden="true">£</span>
+          <input type="text" id="salary" name="salary" inputmode="decimal" autocomplete="off"
+                 placeholder="e.g. 45,000.00" aria-describedby="salaryError">
+        </div>
+        <div class="error" id="salaryError" role="alert"></div>
+      </div>
+
+      <div class="group">
+        <label class="check" for="hasInterest">
+          <input type="checkbox" id="hasInterest" name="hasInterest">
+          Did you earn savings interest?
+        </label>
+        <label for="interest">Savings interest (£)</label>
+        <div class="field">
+          <span class="symbol" aria-hidden="true">£</span>
+          <input type="text" id="interest" name="interest" inputmode="decimal" autocomplete="off"
+                 placeholder="e.g. 750.00" aria-describedby="interestError" disabled>
+        </div>
+        <div class="error" id="interestError" role="alert"></div>
+      </div>
+
+      <button type="submit">Calculate</button>
+    </form>
+
+    <section class="results" id="results" aria-live="polite" hidden>
+      <p class="print-only" id="printDate"></p>
+      <h2 id="resultsTitle"></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Band</th><th scope="col">Income in band</th><th scope="col">Amount</th></tr>
+          </thead>
+          <tbody id="bandRows"></tbody>
+          <tfoot>
+            <tr class="final"><td>Annual salary after tax<small id="netNote">after Income Tax and National Insurance</small></td><td></td><td id="netOut"></td></tr>
+            <tr class="final"><td>Monthly salary after tax<small id="monthlyNote">after Income Tax and National Insurance</small></td><td></td><td id="monthlyOut"></td></tr>
+          </tfoot>
+        </table>
+      </div>
+      <p class="fine-print">National Insurance is the employee (Class 1) rate, worked out on annual earnings. Payroll calculates it each pay period, so real payslips can differ slightly.</p>
+      <button type="button" class="export-btn" id="exportBtn">Export to PDF</button>
+      <small class="export-hint">This opens your print window. Choose “Save as PDF” as the destination.</small>
+    </section>
+    <p class="disclaimer"><strong>Disclaimer:</strong> This calculator gives an estimate for illustration only and is not tax, financial or legal advice. It uses the standard Personal Allowance and the Income Tax rates for England, Wales and Northern Ireland, and employee (Class 1, category A) National Insurance. Savings interest uses the Personal Savings Allowance only (£1,000 for basic rate, £500 for higher rate), and any interest above it is taxed at 20% or 40% depending on which band your salary falls in; the starting rate for savings and interest that spans two bands are not included. It does not include Scottish rates, pension contributions, student loan repayments, benefits in kind, other income or any tax code adjustments. Your actual pay may differ. Please check the current rates on GOV.UK or speak to a qualified adviser.</p>
+  </main>
+
+<script>
+  (function () {
+    var MIN = 1, MAX = 100000;
+
+    // Tax tables. Each band covers income above "from" up to and including "to".
+    var PERSONAL_ALLOWANCE = 12570;
+    var BANDS_STANDARD = [
+      { name: 'Personal allowance', rate: 0,    from: 0,                  to: PERSONAL_ALLOWANCE },
+      { name: 'Basic rate',         rate: 0.20, from: PERSONAL_ALLOWANCE, to: 50270 },
+      { name: 'Higher rate',        rate: 0.40, from: 50270,              to: 125140 }
+    ];
+    // Employee National Insurance (same table used for both tax years).
+    var NI_STANDARD = [
+      { name: 'National Insurance', rate: 0,    from: 0,     to: 12570 },
+      { name: 'National Insurance', rate: 0.08, from: 12570, to: 50270 },
+      { name: 'National Insurance', rate: 0.02, from: 50270, to: Infinity }
+    ];
+    // Personal Savings Allowance: tax-free interest depends on the band your salary falls in.
+    var SAVINGS_STANDARD = { basicAllowance: 1000, higherAllowance: 500, basicRate: 0.20, higherRate: 0.40 };
+    var TAX_YEARS = {
+      'current': { label: 'Current tax year', bands: BANDS_STANDARD, ni: NI_STANDARD, savings: SAVINGS_STANDARD },
+      '2025-26': { label: '2025/2026',        bands: BANDS_STANDARD, ni: NI_STANDARD, savings: SAVINGS_STANDARD }
+    };
+
+    var form = document.getElementById('taxForm');
+    var yearSelect = document.getElementById('taxYear');
+    var yearError = document.getElementById('yearError');
+    var input = document.getElementById('salary');
+    var errorEl = document.getElementById('salaryError');
+    var results = document.getElementById('results');
+    var resultsTitle = document.getElementById('resultsTitle');
+    var bandRows = document.getElementById('bandRows');
+    var hasInterest = document.getElementById('hasInterest');
+    var interestInput = document.getElementById('interest');
+    var interestError = document.getElementById('interestError');
+    var exportBtn = document.getElementById('exportBtn');
+    var printDate = document.getElementById('printDate');
+    var pdfTitle = document.title;
+    var netOut = document.getElementById('netOut');
+    var netNote = document.getElementById('netNote');
+    var monthlyNote = document.getElementById('monthlyNote');
+    var monthlyOut = document.getElementById('monthlyOut');
+
+    var gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+    var gbp0 = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 });
+    var plain = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function round2(n) { return Math.round(n * 100) / 100; }
+
+    // Turn the typed text into a number, or NaN if it is not a valid amount.
+    function parseAmount(text) {
+      var cleaned = text.replace(/[£,\s]/g, '');
+      if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) { return NaN; }
+      return Number(cleaned);
+    }
+
+    // Returns an error message, or an empty string if the value is valid.
+    function validateSalary(text) {
+      if (text.trim() === '') { return 'Please enter your annual salary.'; }
+      var value = parseAmount(text);
+      if (isNaN(value)) { return 'Enter a valid amount, for example 45000 or 45,000.50.'; }
+      if (value <= MIN || value >= MAX) {
+        return 'Annual salary must be more than £1 and less than £100,000.';
+      }
+      return '';
+    }
+
+    function validateInterest(text) {
+      if (text.trim() === '') { return 'Please enter the amount of savings interest.'; }
+      var value = parseAmount(text);
+      if (isNaN(value)) { return 'Enter a valid amount, for example 750 or 1,250.50.'; }
+      if (value <= 0) { return 'Savings interest must be more than £0.'; }
+      return '';
+    }
+
+    function validateYear() {
+      return yearSelect.value === '' ? 'Please select a tax year.' : '';
+    }
+
+    function setError(field, el, message) {
+      el.textContent = message;
+      field.setAttribute('aria-invalid', message ? 'true' : 'false');
+    }
+
+    // Amount for each band, then the total.
+    function calculate(salary, bands) {
+      var rows = bands.map(function (band, i) {
+        var income = Math.max(0, Math.min(salary, band.to) - band.from);
+        var range;
+        if (band.to === Infinity) { range = 'Over ' + gbp0.format(band.from); }
+        else if (i === 0 || band.from === 0) { range = 'Up to ' + gbp0.format(band.to); }
+        else { range = gbp0.format(band.from + 1) + ' to ' + gbp0.format(band.to); }
+        return {
+          name: band.name,
+          rate: band.rate,
+          range: range,
+          income: round2(income),
+          amount: round2(income * band.rate)
+        };
+      });
+      var total = round2(rows.reduce(function (sum, r) { return sum + r.amount; }, 0));
+      return { rows: rows, total: total };
+    }
+
+    function cell(text) {
+      var el = document.createElement('td');
+      el.textContent = text;
+      return el;
+    }
+
+    function addSection(title) {
+      var tr = document.createElement('tr');
+      tr.className = 'section';
+      var th = document.createElement('th');
+      th.colSpan = 3;
+      th.scope = 'colgroup';
+      th.textContent = title;
+      tr.appendChild(th);
+      bandRows.appendChild(tr);
+    }
+
+    function addBandRows(rows) {
+      rows.forEach(function (r) {
+        var tr = document.createElement('tr');
+        var first = document.createElement('td');
+        first.appendChild(document.createTextNode(r.name + ' (' + parseFloat((r.rate * 100).toFixed(2)) + '%)'));
+        var small = document.createElement('small');
+        small.textContent = r.range;
+        first.appendChild(small);
+        tr.appendChild(first);
+        tr.appendChild(cell(gbp.format(r.income)));
+        tr.appendChild(cell(gbp.format(r.amount)));
+        bandRows.appendChild(tr);
+      });
+    }
+
+    function addSubtotal(label, amount) {
+      var tr = document.createElement('tr');
+      tr.className = 'subtotal';
+      tr.appendChild(cell(label));
+      tr.appendChild(cell(''));
+      tr.appendChild(cell(gbp.format(amount)));
+      bandRows.appendChild(tr);
+    }
+
+    // Tax on savings interest, using the Personal Savings Allowance for the salary's band.
+    function calculateSavings(salary, interest, year) {
+      var cfg = year.savings;
+      var higher = salary > year.bands[1].to;
+      var allowance = higher ? cfg.higherAllowance : cfg.basicAllowance;
+      var rate = higher ? cfg.higherRate : cfg.basicRate;
+      var taxable = round2(Math.max(0, interest - allowance));
+      var payer = higher ? 'Higher rate taxpayer' : 'Basic rate taxpayer';
+      return {
+        rows: [
+          { name: 'Personal Savings Allowance', rate: 0, range: payer + ': first ' + gbp0.format(allowance),
+            income: round2(Math.min(interest, allowance)), amount: 0 },
+          { name: 'Taxable savings interest', rate: rate, range: 'Interest over ' + gbp0.format(allowance),
+            income: taxable, amount: round2(taxable * rate) }
+        ],
+        total: round2(taxable * rate)
+      };
+    }
+
+    function render(yearKey, salary, interest) {
+      var year = TAX_YEARS[yearKey];
+      var tax = calculate(salary, year.bands);
+      var ni = calculate(salary, year.ni);
+      var savings = interest === null ? null : calculateSavings(salary, interest, year);
+      var net = round2(salary - tax.total - ni.total - (savings ? savings.total : 0));
+
+      resultsTitle.textContent = year.label + ': salary of ' + gbp.format(salary) +
+        (savings ? ' and savings interest of ' + gbp.format(interest) : '');
+      bandRows.innerHTML = '';
+      addSection('Income Tax');
+      addBandRows(tax.rows);
+      addSubtotal('Total Income Tax', tax.total);
+      addSection('National Insurance');
+      addBandRows(ni.rows);
+      addSubtotal('Total National Insurance', ni.total);
+      if (savings) {
+        addSection('Savings interest');
+        addBandRows(savings.rows);
+        addSubtotal('Total tax on savings interest', savings.total);
+      }
+
+      var note = savings ? 'after Income Tax, National Insurance and tax on savings interest'
+                         : 'after Income Tax and National Insurance';
+      netNote.textContent = note;
+      monthlyNote.textContent = note;
+      netOut.textContent = gbp.format(net);
+      monthlyOut.textContent = gbp.format(round2(net / 12));
+      printDate.textContent = 'Calculated on ' +
+        new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      pdfTitle = 'UK Income Tax calculation - ' + year.label.replace(/\//g, '-');
+      results.hidden = false;
+    }
+
+    // Export to PDF: the print window offers "Save as PDF"; the page's print styles show only the results.
+    var originalTitle = document.title;
+    exportBtn.addEventListener('click', function () {
+      document.title = pdfTitle;
+      window.print();
+    });
+    window.addEventListener('afterprint', function () { document.title = originalTitle; });
+
+    // Money fields: tidy the display when leaving, plain digits when editing.
+    function attachAmountField(field, errEl, validator) {
+      field.addEventListener('blur', function () {
+        if (field.disabled) { return; }
+        var value = parseAmount(field.value);
+        if (!isNaN(value)) { field.value = plain.format(value); }
+        if (field.value.trim() !== '') { setError(field, errEl, validator(field.value)); }
+      });
+      field.addEventListener('focus', function () {
+        field.value = field.value.replace(/,/g, '');
+      });
+      field.addEventListener('input', function () {
+        if (field.getAttribute('aria-invalid') === 'true') { setError(field, errEl, validator(field.value)); }
+      });
+    }
+    attachAmountField(input, errorEl, validateSalary);
+    attachAmountField(interestInput, interestError, validateInterest);
+
+    // The interest box is only usable while the checkbox is ticked.
+    function syncInterestField() {
+      interestInput.disabled = !hasInterest.checked;
+      if (!hasInterest.checked) {
+        interestInput.value = '';
+        setError(interestInput, interestError, '');
+      }
+    }
+    hasInterest.addEventListener('change', function () {
+      syncInterestField();
+      results.hidden = true;
+      if (hasInterest.checked) { interestInput.focus(); }
+    });
+    syncInterestField();
+
+    yearSelect.addEventListener('change', function () {
+      setError(yearSelect, yearError, '');
+      results.hidden = true;
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var yearMsg = validateYear();
+      var salaryMsg = validateSalary(input.value);
+      var interestMsg = hasInterest.checked ? validateInterest(interestInput.value) : '';
+      setError(yearSelect, yearError, yearMsg);
+      setError(input, errorEl, salaryMsg);
+      setError(interestInput, interestError, interestMsg);
+      if (yearMsg || salaryMsg || interestMsg) {
+        results.hidden = true;
+        (yearMsg ? yearSelect : salaryMsg ? input : interestInput).focus();
+        return;
+      }
+      render(yearSelect.value, parseAmount(input.value),
+             hasInterest.checked ? parseAmount(interestInput.value) : null);
+    });
+  })();
+</script>
+</body>
+</html>
